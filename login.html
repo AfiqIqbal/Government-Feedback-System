@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Government Feedback System - Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-lg">
+        <h2 class="text-2xl font-bold mb-6 text-center">Login</h2>
+        <form id="loginForm" class="space-y-6">
+            <div>
+                <label for="aadhaarId" class="block text-sm font-medium text-gray-700">Aadhaar ID</label>
+                <input type="text" id="aadhaarId" name="aadhaarId" class="w-full p-3 border rounded-md" placeholder="Enter your Aadhaar ID" required>
+            </div>
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="password" name="password" class="w-full p-3 border rounded-md" placeholder="Enter your Password" required>
+            </div>
+            <button type="submit" class="bg-blue-600 text-white w-full py-3 rounded-md hover:bg-blue-700 font-bold">Sign In</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const aadhaarId = document.getElementById('aadhaarId').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ aadhaarId, password })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    window.location.href = 'search.html';
+                } else {
+                    alert(data.message || 'Invalid Aadhaar ID or Password');
+                }
+            } catch (error) {
+                alert('Error logging in. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
