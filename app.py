@@ -34,6 +34,9 @@ class Official(db.Model):
     position = db.Column(db.String(100), nullable=False)
     photo_url = db.Column(db.String(200))
     average_rating = db.Column(db.Float, default=0.0)
+    poor_ratings_count = db.Column(db.Integer, default=0)  # Count of ratings 1 & 2
+    marked_for_review = db.Column(db.Boolean, default=False)  # True if poor_ratings_count >= 5
+    is_flagged = db.Column(db.Boolean, default=False)  # True if confirmed poor service after review
     feedbacks = db.relationship('Feedback', backref='official', lazy=True)
 
 class Feedback(db.Model):
@@ -111,71 +114,158 @@ def admin_panel():
 @app.route('/api/officials/search')
 @login_required
 def search_officials():
-    query = request.args.get('query', '').lower()
-    officials = Official.query.all()
-    results = []
-    
-    for official in officials:
-        if query in official.name.lower() or query in official.position.lower():
-            results.append({
-                'id': official.id,
-                'name': official.name,
-                'position': official.position,
-                'photo_url': official.photo_url,
-                'rating': official.average_rating
-            })
-    
-    return jsonify(results)
+    try:
+        print("Search endpoint accessed by user:", current_user.name)
+        query = request.args.get('query', '').lower()
+        print("Search query:", query)
+        
+        officials = Official.query.all()
+        print("Total officials found:", len(officials))
+        
+        results = []
+        for official in officials:
+            if query in official.name.lower() or query in official.position.lower():
+                results.append({
+                    'id': official.id,
+                    'name': official.name,
+                    'position': official.position,
+                    'photo_url': official.photo_url,
+                    'rating': official.average_rating,
+                    'marked_for_review': official.marked_for_review,
+                    'is_flagged': official.is_flagged
+                })
+        
+        print("Matching officials found:", len(results))
+        return jsonify(results)
+    except Exception as e:
+        print("Error in search_officials:", str(e))
+        return jsonify({'error': 'An error occurred while searching officials'}), 500
 
-@app.route('/api/feedback/<int:official_id>')
+@app.route('/api/officials/<int:official_id>/feedbacks')
 @login_required
 def get_feedbacks(official_id):
-    feedbacks = Feedback.query.filter_by(official_id=official_id).order_by(Feedback.timestamp.desc()).all()
-    return jsonify([{
-        'id': f.id,
-        'user_name': f.user.name,
-        'category': f.category,
-        'rating': f.rating,
-        'description': f.description,
-        'timestamp': f.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-    } for f in feedbacks])
-
-@app.route('/api/feedback', methods=['POST'])
-@login_required
-def submit_feedback():
-    data = request.json
-    official_id = data.get('officialId')
-    
-    feedback = Feedback(
-        user_aadhar_id=current_user.aadhar_id,
-        official_id=official_id,
-        category=data.get('category'),
-        rating=data.get('rating'),
-        description=data.get('description')
-    )
-    
-    db.session.add(feedback)
-    
-    # Update official's average rating
-    official = Official.query.get(official_id)
-    feedbacks = Feedback.query.filter_by(official_id=official_id).all()
-    total_rating = sum(f.rating for f in feedbacks) + feedback.rating
-    official.average_rating = total_rating / (len(feedbacks) + 1)
-    
-    db.session.commit()
-    
-    # Return updated feedbacks
-    return jsonify({
-        'success': True,
-        'feedbacks': [{
+    try:
+        print(f"Getting feedbacks for official {official_id}")
+        official = Official.query.get_or_404(official_id)
+        feedbacks = Feedback.query.filter_by(official_id=official_id).order_by(Feedback.timestamp.desc()).all()
+        print(f"Found {len(feedbacks)} feedbacks")
+        
+        result = [{
             'id': f.id,
             'user_name': f.user.name,
             'category': f.category,
             'rating': f.rating,
             'description': f.description,
             'timestamp': f.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-        } for f in Feedback.query.filter_by(official_id=official_id).order_by(Feedback.timestamp.desc()).all()]
-    })
+        } for f in feedbacks]
+        
+        return jsonify({'feedbacks': result})
+    except Exception as e:
+        print(f"Error getting feedbacks: {str(e)}")
+        return jsonify({'error': 'An error occurred while fetching feedbacks'}), 500
+
+@app.route('/api/officials/<int:official_id>/feedbacks', methods=['POST'])
+@login_required
+def submit_feedback(official_id):
+    try:
+        print(f"Submitting feedback for official {official_id} by user {current_user.name}")
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Validate required fields
+        required_fields = ['category', 'rating', 'description']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+                
+        # Validate rating range
+        rating = int(data['rating'])
+        if rating < 1 or rating > 5:
+            return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+            
+        # Get official or return 404
+        official = Official.query.get_or_404(official_id)
+        
+        # Create feedback
+        feedback = Feedback(
+            user_aadhar_id=current_user.aadhar_id,
+            official_id=official_id,
+            category=data['category'],
+            rating=rating,
+            description=data['description']
+        )
+        
+        db.session.add(feedback)
+        
+        # Update official's average rating
+        all_feedbacks = list(official.feedbacks) + [feedback]
+        total_rating = sum(f.rating for f in all_feedbacks)
+        official.average_rating = total_rating / len(all_feedbacks)
+        
+        # Update poor ratings count
+        if rating <= 2:
+            official.poor_ratings_count += 1
+            if official.poor_ratings_count >= 5 and not official.marked_for_review:
+                official.marked_for_review = True
+                print(f"Official {official.name} marked for review due to {official.poor_ratings_count} poor ratings")
+        
+        db.session.commit()
+        print(f"Feedback submitted successfully for official {official.name}")
+        
+        # Return updated feedbacks
+        return jsonify({
+            'success': True,
+            'message': 'Feedback submitted successfully',
+            'official': {
+                'id': official.id,
+                'name': official.name,
+                'position': official.position,
+                'photo_url': official.photo_url,
+                'rating': official.average_rating,
+                'marked_for_review': official.marked_for_review,
+                'is_flagged': official.is_flagged
+            }
+        })
+    except ValueError as e:
+        print(f"Validation error: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print(f"Error submitting feedback: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'An error occurred while submitting feedback'}), 500
+
+@app.route('/api/officials/<int:id>/confirm-poor-service', methods=['POST'])
+@login_required
+def confirm_poor_service(id):
+    try:
+        print(f"Confirming poor service for official {id} by user {current_user.name}")
+        official = Official.query.get_or_404(id)
+        
+        if not official.marked_for_review:
+            return jsonify({'error': 'Official is not marked for review'}), 400
+            
+        official.is_flagged = True
+        db.session.commit()
+        print(f"Official {official.name} has been flagged for poor service")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Official has been flagged for poor service',
+            'official': {
+                'id': official.id,
+                'name': official.name,
+                'position': official.position,
+                'photo_url': official.photo_url,
+                'rating': official.average_rating,
+                'marked_for_review': official.marked_for_review,
+                'is_flagged': official.is_flagged
+            }
+        })
+    except Exception as e:
+        print(f"Error confirming poor service: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'An error occurred while confirming poor service'}), 500
 
 # Admin API Routes
 @app.route('/api/admin/officials', methods=['GET', 'POST'])
@@ -199,7 +289,10 @@ def admin_officials():
         'name': o.name,
         'position': o.position,
         'photo_url': o.photo_url,
-        'rating': o.average_rating
+        'rating': o.average_rating,
+        'poor_ratings_count': o.poor_ratings_count,
+        'marked_for_review': o.marked_for_review,
+        'is_flagged': o.is_flagged
     } for o in officials])
 
 @app.route('/api/admin/officials/<int:id>', methods=['DELETE'])
@@ -210,6 +303,51 @@ def delete_official(id):
     db.session.delete(official)
     db.session.commit()
     return jsonify({'success': True})
+
+@app.route('/api/admin/officials/<int:id>', methods=['PUT'])
+@login_required
+@admin_required
+def update_official(id):
+    try:
+        print(f"Updating official {id} by admin {current_user.name}")
+        official = Official.query.get_or_404(id)
+        data = request.json
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Validate required fields
+        required_fields = ['name', 'position']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+                
+        # Update fields
+        official.name = data['name']
+        official.position = data['position']
+        if 'photo_url' in data:
+            official.photo_url = data['photo_url']
+            
+        db.session.commit()
+        print(f"Official {official.name} updated successfully")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Official updated successfully',
+            'official': {
+                'id': official.id,
+                'name': official.name,
+                'position': official.position,
+                'photo_url': official.photo_url,
+                'rating': official.average_rating,
+                'marked_for_review': official.marked_for_review,
+                'is_flagged': official.is_flagged
+            }
+        })
+    except Exception as e:
+        print(f"Error updating official: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'An error occurred while updating official'}), 500
 
 @app.route('/api/admin/users', methods=['GET', 'POST'])
 @login_required
@@ -290,6 +428,12 @@ def delete_feedback(id):
         official.average_rating = total_rating / len(remaining_feedbacks)
     else:
         official.average_rating = 0
+    
+    # Update poor ratings count
+    if feedback.rating <= 2:
+        official.poor_ratings_count -= 1
+        if official.poor_ratings_count < 5:
+            official.marked_for_review = False
     
     db.session.commit()
     return jsonify({'success': True})

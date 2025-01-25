@@ -3,7 +3,12 @@ from werkzeug.security import generate_password_hash
 
 def init_database():
     with app.app_context():
+        # Drop all tables
+        print("Dropping all tables...")
+        db.drop_all()
+        
         # Create tables
+        print("Creating tables...")
         db.create_all()
 
         # Add admin user
@@ -48,25 +53,37 @@ def init_database():
                 name='Gouri',
                 position='Revenue Department Officer',
                 photo_url='https://via.placeholder.com/150',
-                average_rating=0.0
+                average_rating=0.0,
+                poor_ratings_count=0,
+                marked_for_review=False,
+                is_flagged=False
             ),
             Official(
                 name='Afiq',
                 position='SBI Branch Manager',
                 photo_url='https://via.placeholder.com/150',
-                average_rating=0.0
+                average_rating=0.0,
+                poor_ratings_count=0,
+                marked_for_review=False,
+                is_flagged=False
             ),
             Official(
                 name='Lakshmi',
                 position='Professor',
                 photo_url='https://via.placeholder.com/150',
-                average_rating=0.0
+                average_rating=0.0,
+                poor_ratings_count=0,
+                marked_for_review=False,
+                is_flagged=False
             ),
             Official(
                 name='Ribin',
                 position='Clerk',
                 photo_url='https://via.placeholder.com/150',
-                average_rating=0.0
+                average_rating=0.0,
+                poor_ratings_count=0,
+                marked_for_review=False,
+                is_flagged=False
             )
         ]
 

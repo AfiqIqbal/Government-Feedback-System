@@ -159,6 +159,66 @@
             }, 3000);
         }
 
+        // Edit official functions
+        function editOfficial(official) {
+            const modal = document.getElementById('editOfficialModal');
+            document.getElementById('editOfficialId').value = official.id;
+            document.getElementById('editOfficialName').value = official.name;
+            document.getElementById('editOfficialPosition').value = official.position;
+            document.getElementById('editOfficialPhotoUrl').value = official.photo_url || '';
+            modal.classList.remove('hidden');
+        }
+
+        function closeEditOfficialModal() {
+            document.getElementById('editOfficialModal').classList.add('hidden');
+        }
+
+        async function updateOfficial(event) {
+            event.preventDefault();
+            const form = event.target;
+            const id = document.getElementById('editOfficialId').value;
+            
+            try {
+                console.log('Updating official:', id);
+                const formData = {
+                    name: document.getElementById('editOfficialName').value,
+                    position: document.getElementById('editOfficialPosition').value,
+                    photo_url: document.getElementById('editOfficialPhotoUrl').value
+                };
+                console.log('Official data:', formData);
+                
+                const response = await fetch(`/api/admin/officials/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Official updated:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Close modal and show success message
+                closeEditOfficialModal();
+                showToast('Official updated successfully');
+                
+                // Reload officials list
+                await loadOfficials();
+            } catch (error) {
+                console.error('Error updating official:', error);
+                showToast('Error updating official: ' + error.message, 'error');
+            }
+        }
+
         // Load officials
         async function loadOfficials() {
             try {
@@ -175,9 +235,14 @@
                         <div>
                             <p class="font-semibold">${official.name}</p>
                             <p class="text-sm text-gray-600">${official.position}</p>
+                            <div class="text-sm text-gray-500">
+                                Rating: ${official.average_rating ? official.average_rating.toFixed(1) : 'N/A'}
+                                ${official.marked_for_review ? '<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded ml-2">Under Review</span>' : ''}
+                                ${official.is_flagged ? '<span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded ml-2">Flagged</span>' : ''}
+                            </div>
                         </div>
                         <div class="flex space-x-2">
-                            <button onclick="editOfficial(${official.id})" class="text-blue-600 hover:text-blue-800">
+                            <button onclick='editOfficial(${JSON.stringify(official)})' class="text-blue-600 hover:text-blue-800">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button onclick="deleteOfficial(${official.id})" class="text-red-600 hover:text-red-800">
@@ -188,7 +253,7 @@
                     officialsList.appendChild(div);
                 });
 
-                // Update official filter dropdown
+                // Also update the official filter dropdown for feedbacks
                 const officialFilter = document.getElementById('officialFilter');
                 officialFilter.innerHTML = '<option value="">All Officials</option>';
                 officials.forEach(official => {
@@ -196,7 +261,7 @@
                 });
             } catch (error) {
                 console.error('Error loading officials:', error);
-                showToast('Error loading officials', 'error');
+                showToast('Error loading officials: ' + error.message, 'error');
             }
         }
 

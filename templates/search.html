@@ -80,15 +80,18 @@
             <!-- Official Details and Feedback Form -->
             <div class="lg:col-span-2">
                 <div id="officialDetails" class="hidden space-y-6">
+                    <!-- Warning Message -->
+                    <div id="officialWarning" class="hidden"></div>
+
                     <!-- Official Info Card -->
                     <div class="bg-white rounded-lg shadow-lg p-6">
                         <div class="flex items-start space-x-4">
                             <img id="officialPhoto" class="w-24 h-24 rounded-lg object-cover" src="" alt="Official Photo">
                             <div class="flex-grow">
                                 <h2 id="officialName" class="text-2xl font-bold text-gray-800"></h2>
+                                <p id="officialPosition" class="text-gray-600"></p>
                                 <div class="flex items-center mt-2">
-                                    <div class="star-rating text-xl">★★★★★</div>
-                                    <span id="ratingValue" class="ml-2 text-gray-600"></span>
+                                    <div id="officialRating" class="star-rating text-xl"></div>
                                 </div>
                             </div>
                         </div>
@@ -101,6 +104,7 @@
                             Submit Feedback
                         </h3>
                         <form id="feedbackForm" class="space-y-4">
+                            <input type="hidden" id="selectedOfficialId" value="">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Category</label>
                                 <select id="category" required
@@ -164,96 +168,199 @@
         </div>
     </div>
 
+    <!-- Poor Service Confirmation Modal -->
+    <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Confirm Poor Service</h3>
+            <p class="text-gray-600 mb-6">This official has received multiple poor ratings. Based on your experience, do you confirm that their service was really poor?</p>
+            <div class="flex justify-end space-x-4">
+                <button onclick="closeConfirmationModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                    No, Cancel
+                </button>
+                <button onclick="confirmPoorService(selectedOfficial.id)" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                    Yes, Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        let currentOfficialId = null;
+        let selectedOfficial = null;
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
-            
-            toast.firstElementChild.className = `px-6 py-3 rounded shadow-lg ${
-                type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            } text-white`;
-            
+            toast.firstElementChild.className = type === 'success' 
+                ? 'bg-green-500 text-white px-6 py-3 rounded shadow-lg'
+                : 'bg-red-500 text-white px-6 py-3 rounded shadow-lg';
             toastMessage.textContent = message;
-            toast.style.transform = 'translateX(0)';
-            
+            toast.classList.remove('translate-x-full');
             setTimeout(() => {
-                toast.style.transform = 'translateX(100%)';
+                toast.classList.add('translate-x-full');
             }, 3000);
+        }
+
+        function showConfirmationModal() {
+            document.getElementById('confirmationModal').classList.remove('hidden');
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmationModal').classList.add('hidden');
+        }
+
+        async function confirmPoorService(id) {
+            try {
+                console.log('Confirming poor service for official:', id);
+                const response = await fetch(`/api/officials/${id}/confirm-poor-service`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Poor service confirmed:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update UI with new official data
+                updateOfficialCard(data.official);
+                
+                // Close modal
+                const modal = document.getElementById('confirmationModal');
+                modal.style.display = 'none';
+                
+                // Show success message
+                showToast(data.message, 'success');
+            } catch (error) {
+                console.error('Error confirming poor service:', error);
+                showToast('Error confirming poor service: ' + error.message, 'error');
+            }
+        }
+
+        function getStarRating(rating) {
+            const fullStar = '★';
+            const emptyStar = '☆';
+            const stars = Math.round(rating);
+            return fullStar.repeat(stars) + emptyStar.repeat(5 - stars);
         }
 
         async function searchOfficials() {
             const query = document.getElementById('searchBox').value;
             try {
-                const response = await fetch(`/api/officials/search?query=${encodeURIComponent(query)}`);
-                const officials = await response.json();
-                const searchResults = document.getElementById('searchResults');
-                searchResults.innerHTML = '';
+                console.log('Searching for:', query);
+                const response = await fetch('/api/officials/search?query=' + encodeURIComponent(query));
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Search results:', data);
+                
+                const resultsDiv = document.getElementById('searchResults');
+                resultsDiv.innerHTML = '';
 
-                if (officials.length === 0) {
-                    searchResults.innerHTML = `
-                        <div class="p-4 text-center text-gray-500">
-                            <i class="fas fa-search mb-2 text-2xl"></i>
-                            <p>No officials found</p>
+                if (!data || data.length === 0) {
+                    resultsDiv.innerHTML = `
+                        <div class="p-4 text-gray-600">
+                            No officials found matching your search.
                         </div>
                     `;
                     return;
                 }
 
-                officials.forEach(official => {
-                    const div = document.createElement('div');
-                    div.className = 'p-4 hover:bg-gray-50 cursor-pointer transition duration-150';
-                    div.innerHTML = `
-                        <div class="flex items-center space-x-4">
-                            <img src="${official.photo_url || 'https://via.placeholder.com/150'}" 
-                                 alt="${official.name}" 
-                                 class="w-12 h-12 rounded-full object-cover">
-                            <div class="flex-grow">
-                                <h3 class="font-semibold text-gray-800">${official.name}</h3>
-                                <p class="text-sm text-gray-600">${official.position}</p>
-                                <div class="flex items-center mt-1">
-                                    <div class="star-rating text-sm">
-                                        ${'★'.repeat(Math.round(official.rating))}${'☆'.repeat(5-Math.round(official.rating))}
-                                    </div>
-                                    <span class="ml-1 text-sm text-gray-500">${official.rating.toFixed(1)}</span>
-                                </div>
+                data.forEach(official => {
+                    const card = document.createElement('div');
+                    card.className = 'p-4 hover:bg-gray-50 cursor-pointer';
+                    
+                    let warningBadge = '';
+                    if (official.is_flagged) {
+                        warningBadge = '<span class="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded ml-2">⚠️ Flagged</span>';
+                    } else if (official.marked_for_review) {
+                        warningBadge = '<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded ml-2">Under Review</span>';
+                    }
+
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-gray-800">${official.name}${warningBadge}</h3>
+                                <p class="text-gray-600 text-sm">${official.position}</p>
+                            </div>
+                            <div class="text-yellow-400">
+                                ${getStarRating(official.rating)}
                             </div>
                         </div>
                     `;
-                    div.onclick = () => displayOfficialDetails(official);
-                    searchResults.appendChild(div);
+                    
+                    card.addEventListener('click', () => displayOfficialDetails(official));
+                    resultsDiv.appendChild(card);
                 });
             } catch (error) {
-                console.error('Error searching officials:', error);
-                showToast('Error searching officials', 'error');
+                console.error('Search error:', error);
+                showToast('Error searching officials: ' + error.message, 'error');
             }
         }
 
-        async function displayOfficialDetails(official) {
-            currentOfficialId = official.id;
-            document.getElementById('officialDetails').classList.remove('hidden');
-            document.getElementById('officialPhoto').src = official.photo_url || 'https://via.placeholder.com/150';
-            document.getElementById('officialName').textContent = official.name;
-            
-            const ratingStars = '★'.repeat(Math.round(official.rating)) + '☆'.repeat(5-Math.round(official.rating));
-            document.getElementById('ratingValue').innerHTML = `
-                <span class="star-rating">${ratingStars}</span>
-                <span class="ml-1">${official.rating.toFixed(1)} out of 5</span>
-            `;
-            
-            document.getElementById('feedbackForm').dataset.officialId = official.id;
-            await updateFeedbackList(official.id);
+        function displayOfficialDetails(official) {
+            selectedOfficial = official;
+            const detailsDiv = document.getElementById('officialDetails');
+            const photoImg = document.getElementById('officialPhoto');
+            const nameSpan = document.getElementById('officialName');
+            const positionSpan = document.getElementById('officialPosition');
+            const ratingDiv = document.getElementById('officialRating');
+            const warningDiv = document.getElementById('officialWarning');
+
+            detailsDiv.classList.remove('hidden');
+            photoImg.src = official.photo_url || 'default-photo.jpg';
+            nameSpan.textContent = official.name;
+            positionSpan.textContent = official.position;
+            ratingDiv.innerHTML = getStarRating(official.rating);
+
+            // Show warning if official is flagged
+            if (official.is_flagged) {
+                warningDiv.innerHTML = `
+                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                        <p class="font-medium">Warning: This official has been flagged for poor service</p>
+                    </div>
+                `;
+                warningDiv.classList.remove('hidden');
+            } else {
+                warningDiv.classList.add('hidden');
+            }
+
+            // Check if official is marked for review and not already flagged
+            if (official.marked_for_review && !official.is_flagged) {
+                showConfirmationModal();
+            }
+
+            updateFeedbackList(official.id);
+            document.getElementById('selectedOfficialId').value = official.id;
         }
 
         async function updateFeedbackList(officialId) {
             try {
-                const response = await fetch(`/api/feedback/${officialId}`);
-                const feedbacks = await response.json();
-                displayFeedbacks(feedbacks);
+                console.log('Fetching feedbacks for official:', officialId);
+                const response = await fetch(`/api/officials/${officialId}/feedbacks`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log('Feedback data:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displayFeedbacks(data.feedbacks);
             } catch (error) {
-                console.error('Error fetching feedbacks:', error);
-                showToast('Error loading feedbacks', 'error');
+                console.error('Error loading feedbacks:', error);
+                showToast('Error loading feedbacks: ' + error.message, 'error');
             }
         }
 
@@ -263,90 +370,114 @@
 
             if (!feedbacks || feedbacks.length === 0) {
                 feedbackList.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <i class="fas fa-comments text-4xl mb-2"></i>
-                        <p>No feedbacks yet</p>
+                    <div class="text-gray-600">
+                        No feedbacks yet.
                     </div>
                 `;
                 return;
             }
 
             feedbacks.forEach(feedback => {
-                const div = document.createElement('div');
-                div.className = 'feedback-card bg-gray-50 rounded-lg p-4 border border-gray-200';
-                div.innerHTML = `
+                const feedbackCard = document.createElement('div');
+                feedbackCard.className = 'bg-gray-50 rounded-lg p-4 mb-4';
+                feedbackCard.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <div class="flex-grow">
-                            <div class="flex items-center mb-2">
-                                <span class="font-semibold text-gray-800">${feedback.user_name}</span>
-                                <span class="mx-2 text-gray-400">•</span>
-                                <span class="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded">
-                                    ${feedback.category}
-                                </span>
-                            </div>
-                            <p class="text-gray-700 mb-2">${feedback.description}</p>
-                            <div class="flex items-center text-sm text-gray-500">
-                                <div class="star-rating mr-2">
-                                    ${'★'.repeat(feedback.rating)}${'☆'.repeat(5-feedback.rating)}
-                                </div>
-                                <span class="mr-2">${feedback.rating}/5</span>
-                                <span>•</span>
-                                <span class="ml-2">${feedback.timestamp}</span>
-                            </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">${feedback.category}</div>
+                            <div class="text-yellow-400 text-sm">${getStarRating(feedback.rating)}</div>
+                            <div class="text-sm text-gray-500">By ${feedback.user_name}</div>
+                        </div>
+                        <div class="text-sm text-gray-500">
+                            ${new Date(feedback.timestamp).toLocaleDateString()}
                         </div>
                     </div>
+                    <p class="mt-2 text-gray-600">${feedback.description}</p>
                 `;
-                feedbackList.appendChild(div);
+                feedbackList.appendChild(feedbackCard);
             });
+        }
+
+        async function submitFeedback(event) {
+            event.preventDefault();
+            const form = event.target;
+            const officialId = document.getElementById('selectedOfficialId').value;
+            
+            try {
+                console.log('Submitting feedback for official:', officialId);
+                const formData = {
+                    category: form.category.value,
+                    rating: parseInt(form.rating.value),
+                    description: form.description.value
+                };
+                console.log('Feedback data:', formData);
+                
+                const response = await fetch(`/api/officials/${officialId}/feedbacks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Feedback submitted:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update UI with new official data
+                updateOfficialCard(data.official);
+                
+                // Reset form
+                form.reset();
+                
+                // Show success message
+                showToast('Feedback submitted successfully', 'success');
+                
+                // Refresh feedback list
+                await updateFeedbackList(officialId);
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                showToast('Error submitting feedback: ' + error.message, 'error');
+            }
+        }
+
+        function updateOfficialCard(official) {
+            const card = document.querySelector(`[data-official-id="${official.id}"]`);
+            if (card) {
+                // Update rating
+                const ratingElement = card.querySelector('.rating');
+                if (ratingElement) {
+                    ratingElement.textContent = official.rating.toFixed(1);
+                }
+                
+                // Update badges
+                const badgesDiv = card.querySelector('.badges');
+                if (badgesDiv) {
+                    badgesDiv.innerHTML = '';
+                    if (official.is_flagged) {
+                        badgesDiv.innerHTML += '<span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Flagged</span>';
+                    }
+                    if (official.marked_for_review) {
+                        badgesDiv.innerHTML += '<span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">Under Review</span>';
+                    }
+                }
+            }
         }
 
         document.getElementById('searchBox').addEventListener('input', searchOfficials);
 
-        document.getElementById('feedbackForm').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const officialId = event.target.dataset.officialId;
-            const category = document.getElementById('category').value;
-            const rating = document.getElementById('rating').value;
-            const description = document.getElementById('description').value;
+        document.getElementById('feedbackForm').addEventListener('submit', submitFeedback);
 
-            try {
-                const response = await fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        officialId: parseInt(officialId),
-                        category,
-                        rating: parseInt(rating),
-                        description
-                    })
-                });
-
-                const data = await response.json();
-                if (data.success) {
-                    // Clear the form
-                    event.target.reset();
-                    
-                    // Update the feedback list with the new data
-                    displayFeedbacks(data.feedbacks);
-                    
-                    // Refresh the search results to show updated rating
-                    await searchOfficials();
-
-                    // Show success message
-                    showToast('Feedback submitted successfully');
-                } else {
-                    showToast('Error submitting feedback', 'error');
-                }
-            } catch (error) {
-                console.error('Error submitting feedback:', error);
-                showToast('Error submitting feedback', 'error');
-            }
+        document.addEventListener('DOMContentLoaded', () => {
+            searchOfficials();
         });
-
-        // Initial search when page loads
-        searchOfficials();
     </script>
 </body>
 </html>
