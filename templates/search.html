@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search - Government Feedback System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .bg-pattern {
+            background-color: #f0f2f5;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .star-rating {
+            color: #fbbf24;
+        }
+        .feedback-card {
+            transition: transform 0.2s;
+        }
+        .feedback-card:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-pattern min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <i class="fas fa-landmark text-2xl mr-2"></i>
+                    <span class="text-xl font-bold">Government Feedback System</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm">
+                        Welcome, <span class="font-semibold">{{ current_user.name }}</span>
+                    </span>
+                    <form action="/logout" method="POST" class="inline">
+                        <button type="submit" class="hover:text-gray-200">
+                            <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-6 py-8">
+        <!-- Search Box -->
+        <div class="mb-8">
+            <div class="max-w-2xl mx-auto">
+                <div class="relative">
+                    <input type="text" id="searchBox" 
+                           class="w-full px-4 py-3 pl-12 pr-10 text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                           placeholder="Search for government officials by name or position...">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Search Results -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b">
+                        <h2 class="text-lg font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-list mr-2 text-blue-600"></i>
+                            Search Results
+                        </h2>
+                    </div>
+                    <div id="searchResults" class="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
+                        <!-- Search results will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Official Details and Feedback Form -->
+            <div class="lg:col-span-2">
+                <div id="officialDetails" class="hidden space-y-6">
+                    <!-- Official Info Card -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <div class="flex items-start space-x-4">
+                            <img id="officialPhoto" class="w-24 h-24 rounded-lg object-cover" src="" alt="Official Photo">
+                            <div class="flex-grow">
+                                <h2 id="officialName" class="text-2xl font-bold text-gray-800"></h2>
+                                <div class="flex items-center mt-2">
+                                    <div class="star-rating text-xl">★★★★★</div>
+                                    <span id="ratingValue" class="ml-2 text-gray-600"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Feedback Form -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-comment-dots mr-2 text-blue-600"></i>
+                            Submit Feedback
+                        </h3>
+                        <form id="feedbackForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Category</label>
+                                <select id="category" required
+                                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md">
+                                    <option value="">Select a category</option>
+                                    <option value="Service Quality">Service Quality</option>
+                                    <option value="Response Time">Response Time</option>
+                                    <option value="Communication">Communication</option>
+                                    <option value="Problem Resolution">Problem Resolution</option>
+                                    <option value="Overall Experience">Overall Experience</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Rating</label>
+                                <select id="rating" required
+                                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-md">
+                                    <option value="">Select a rating</option>
+                                    <option value="5">5 - Excellent</option>
+                                    <option value="4">4 - Good</option>
+                                    <option value="3">3 - Average</option>
+                                    <option value="2">2 - Poor</option>
+                                    <option value="1">1 - Very Poor</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Description</label>
+                                <textarea id="description" rows="4" required
+                                          class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                          placeholder="Please provide detailed feedback..."></textarea>
+                            </div>
+                            
+                            <button type="submit"
+                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                <i class="fas fa-paper-plane mr-2"></i>
+                                Submit Feedback
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Previous Feedbacks -->
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-history mr-2 text-blue-600"></i>
+                            Previous Feedbacks
+                        </h3>
+                        <div id="feedbackList" class="space-y-4">
+                            <!-- Feedbacks will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 transform transition-transform duration-300 translate-x-full">
+        <div class="bg-green-500 text-white px-6 py-3 rounded shadow-lg">
+            <span id="toastMessage"></span>
+        </div>
+    </div>
+
+    <script>
+        let currentOfficialId = null;
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toast.firstElementChild.className = `px-6 py-3 rounded shadow-lg ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            } text-white`;
+            
+            toastMessage.textContent = message;
+            toast.style.transform = 'translateX(0)';
+            
+            setTimeout(() => {
+                toast.style.transform = 'translateX(100%)';
+            }, 3000);
+        }
+
+        async function searchOfficials() {
+            const query = document.getElementById('searchBox').value;
+            try {
+                const response = await fetch(`/api/officials/search?query=${encodeURIComponent(query)}`);
+                const officials = await response.json();
+                const searchResults = document.getElementById('searchResults');
+                searchResults.innerHTML = '';
+
+                if (officials.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="p-4 text-center text-gray-500">
+                            <i class="fas fa-search mb-2 text-2xl"></i>
+                            <p>No officials found</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                officials.forEach(official => {
+                    const div = document.createElement('div');
+                    div.className = 'p-4 hover:bg-gray-50 cursor-pointer transition duration-150';
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-4">
+                            <img src="${official.photo_url || 'https://via.placeholder.com/150'}" 
+                                 alt="${official.name}" 
+                                 class="w-12 h-12 rounded-full object-cover">
+                            <div class="flex-grow">
+                                <h3 class="font-semibold text-gray-800">${official.name}</h3>
+                                <p class="text-sm text-gray-600">${official.position}</p>
+                                <div class="flex items-center mt-1">
+                                    <div class="star-rating text-sm">
+                                        ${'★'.repeat(Math.round(official.rating))}${'☆'.repeat(5-Math.round(official.rating))}
+                                    </div>
+                                    <span class="ml-1 text-sm text-gray-500">${official.rating.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    div.onclick = () => displayOfficialDetails(official);
+                    searchResults.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Error searching officials:', error);
+                showToast('Error searching officials', 'error');
+            }
+        }
+
+        async function displayOfficialDetails(official) {
+            currentOfficialId = official.id;
+            document.getElementById('officialDetails').classList.remove('hidden');
+            document.getElementById('officialPhoto').src = official.photo_url || 'https://via.placeholder.com/150';
+            document.getElementById('officialName').textContent = official.name;
+            
+            const ratingStars = '★'.repeat(Math.round(official.rating)) + '☆'.repeat(5-Math.round(official.rating));
+            document.getElementById('ratingValue').innerHTML = `
+                <span class="star-rating">${ratingStars}</span>
+                <span class="ml-1">${official.rating.toFixed(1)} out of 5</span>
+            `;
+            
+            document.getElementById('feedbackForm').dataset.officialId = official.id;
+            await updateFeedbackList(official.id);
+        }
+
+        async function updateFeedbackList(officialId) {
+            try {
+                const response = await fetch(`/api/feedback/${officialId}`);
+                const feedbacks = await response.json();
+                displayFeedbacks(feedbacks);
+            } catch (error) {
+                console.error('Error fetching feedbacks:', error);
+                showToast('Error loading feedbacks', 'error');
+            }
+        }
+
+        function displayFeedbacks(feedbacks) {
+            const feedbackList = document.getElementById('feedbackList');
+            feedbackList.innerHTML = '';
+
+            if (!feedbacks || feedbacks.length === 0) {
+                feedbackList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-comments text-4xl mb-2"></i>
+                        <p>No feedbacks yet</p>
+                    </div>
+                `;
+                return;
+            }
+
+            feedbacks.forEach(feedback => {
+                const div = document.createElement('div');
+                div.className = 'feedback-card bg-gray-50 rounded-lg p-4 border border-gray-200';
+                div.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-grow">
+                            <div class="flex items-center mb-2">
+                                <span class="font-semibold text-gray-800">${feedback.user_name}</span>
+                                <span class="mx-2 text-gray-400">•</span>
+                                <span class="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded">
+                                    ${feedback.category}
+                                </span>
+                            </div>
+                            <p class="text-gray-700 mb-2">${feedback.description}</p>
+                            <div class="flex items-center text-sm text-gray-500">
+                                <div class="star-rating mr-2">
+                                    ${'★'.repeat(feedback.rating)}${'☆'.repeat(5-feedback.rating)}
+                                </div>
+                                <span class="mr-2">${feedback.rating}/5</span>
+                                <span>•</span>
+                                <span class="ml-2">${feedback.timestamp}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                feedbackList.appendChild(div);
+            });
+        }
+
+        document.getElementById('searchBox').addEventListener('input', searchOfficials);
+
+        document.getElementById('feedbackForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const officialId = event.target.dataset.officialId;
+            const category = document.getElementById('category').value;
+            const rating = document.getElementById('rating').value;
+            const description = document.getElementById('description').value;
+
+            try {
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        officialId: parseInt(officialId),
+                        category,
+                        rating: parseInt(rating),
+                        description
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Clear the form
+                    event.target.reset();
+                    
+                    // Update the feedback list with the new data
+                    displayFeedbacks(data.feedbacks);
+                    
+                    // Refresh the search results to show updated rating
+                    await searchOfficials();
+
+                    // Show success message
+                    showToast('Feedback submitted successfully');
+                } else {
+                    showToast('Error submitting feedback', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                showToast('Error submitting feedback', 'error');
+            }
+        });
+
+        // Initial search when page loads
+        searchOfficials();
+    </script>
+</body>
+</html>

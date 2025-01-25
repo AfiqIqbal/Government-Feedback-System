@@ -6,6 +6,14 @@ def init_database():
         # Create tables
         db.create_all()
 
+        # Add admin user
+        admin_user = User(
+            aadhar_id='999999999999',
+            password=generate_password_hash('admin123'),
+            name='Admin',
+            role='admin'
+        )
+
         # Add test users
         users = [
             User(
@@ -69,6 +77,7 @@ def init_database():
             db.session.query(Official).delete()
             
             # Add new data
+            db.session.add(admin_user)
             for user in users:
                 db.session.add(user)
             for official in officials:
@@ -77,7 +86,12 @@ def init_database():
             print("Test data added successfully!")
             
             # Print login information
-            print("\nLogin credentials for testing:")
+            print("\nAdmin Login:")
+            print("Aadhar ID: 999999999999")
+            print("Password: admin123")
+            print("-" * 20)
+            
+            print("\nUser Login credentials:")
             for user in users:
                 print(f"Name: {user.name}")
                 print(f"Aadhar ID: {user.aadhar_id}")
