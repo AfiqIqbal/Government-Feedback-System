@@ -79,21 +79,34 @@
 
             <!-- Official Details and Feedback Form -->
             <div class="lg:col-span-2">
-                <div id="officialDetails" class="hidden space-y-6">
+                <div id="officialDetails" class="hidden bg-white rounded-lg shadow-lg p-6 mb-6">
                     <!-- Warning Message -->
                     <div id="officialWarning" class="hidden"></div>
 
                     <!-- Official Info Card -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <div class="flex items-start space-x-4">
-                            <img id="officialPhoto" class="w-24 h-24 rounded-lg object-cover" src="" alt="Official Photo">
-                            <div class="flex-grow">
-                                <h2 id="officialName" class="text-2xl font-bold text-gray-800"></h2>
-                                <p id="officialPosition" class="text-gray-600"></p>
-                                <div class="flex items-center mt-2">
-                                    <div id="officialRating" class="star-rating text-xl"></div>
-                                </div>
-                            </div>
+                    <div class="flex items-start space-x-6">
+                        <img id="officialPhoto" class="w-24 h-24 rounded-full object-cover" src="" alt="Official photo">
+                        <div class="flex-1">
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">
+                                <span id="officialName"></span>
+                            </h2>
+                            <p class="text-gray-600 mb-2">
+                                <span class="font-semibold">Position:</span> 
+                                <span id="officialPosition"></span>
+                            </p>
+                            <p class="text-gray-600 mb-2">
+                                <span class="font-semibold">Department:</span> 
+                                <span id="officialDepartment"></span>
+                            </p>
+                            <p class="text-gray-600 mb-2">
+                                <span class="font-semibold">Office Location:</span> 
+                                <span id="officialLocation"></span>
+                            </p>
+                            <p class="text-gray-600 mb-2">
+                                <span class="font-semibold">Contact Email:</span> 
+                                <span id="officialEmail"></span>
+                            </p>
+                            <div id="officialRating" class="text-yellow-400 mb-2"></div>
                         </div>
                     </div>
 
@@ -328,6 +341,9 @@
             const photoImg = document.getElementById('officialPhoto');
             const nameSpan = document.getElementById('officialName');
             const positionSpan = document.getElementById('officialPosition');
+            const departmentSpan = document.getElementById('officialDepartment');
+            const locationSpan = document.getElementById('officialLocation');
+            const emailSpan = document.getElementById('officialEmail');
             const ratingDiv = document.getElementById('officialRating');
             const warningDiv = document.getElementById('officialWarning');
 
@@ -335,6 +351,9 @@
             photoImg.src = official.photo_url || 'default-photo.jpg';
             nameSpan.textContent = official.name;
             positionSpan.textContent = official.position;
+            departmentSpan.textContent = official.department || 'Not specified';
+            locationSpan.textContent = official.office_location || 'Not specified';
+            emailSpan.textContent = official.contact_email || 'Not available';
             ratingDiv.innerHTML = getStarRating(official.rating);
 
             // Show warning messages and handle confirmation modal
@@ -483,12 +502,18 @@
             // Update details in the main view
             const nameSpan = document.getElementById('officialName');
             const positionSpan = document.getElementById('officialPosition');
+            const departmentSpan = document.getElementById('officialDepartment');
+            const locationSpan = document.getElementById('officialLocation');
+            const emailSpan = document.getElementById('officialEmail');
             const ratingDiv = document.getElementById('officialRating');
             const warningDiv = document.getElementById('officialWarning');
             const photoImg = document.getElementById('officialPhoto');
 
             if (nameSpan) nameSpan.textContent = official.name;
             if (positionSpan) positionSpan.textContent = official.position;
+            if (departmentSpan) departmentSpan.textContent = official.department || 'Not specified';
+            if (locationSpan) locationSpan.textContent = official.office_location || 'Not specified';
+            if (emailSpan) emailSpan.textContent = official.contact_email || 'Not available';
             if (ratingDiv) ratingDiv.innerHTML = getStarRating(official.rating);
             if (photoImg) photoImg.src = official.photo_url || 'default-photo.jpg';
 
@@ -544,6 +569,7 @@
                                 <div>
                                     <h3 class="font-semibold text-gray-800">${official.name}${warningBadge}</h3>
                                     <p class="text-gray-600 text-sm">${official.position}</p>
+                                    <p class="text-gray-500 text-xs">${official.department || ''} - ${official.office_location || ''}</p>
                                 </div>
                                 <div class="text-yellow-400">
                                     ${getStarRating(official.rating)}

@@ -37,6 +37,9 @@ class Official(db.Model):
     poor_ratings_count = db.Column(db.Integer, default=0)  # Count of ratings 1 & 2
     marked_for_review = db.Column(db.Boolean, default=False)  # True if poor_ratings_count >= 5
     is_flagged = db.Column(db.Boolean, default=False)  # True if confirmed poor service after review
+    department = db.Column(db.String(100))
+    office_location = db.Column(db.String(100))
+    contact_email = db.Column(db.String(100))
     feedbacks = db.relationship('Feedback', backref='official', lazy=True)
 
 class Feedback(db.Model):
@@ -150,7 +153,10 @@ def search_officials():
                     'rating': official.average_rating,
                     'poor_ratings_count': official.poor_ratings_count,
                     'marked_for_review': official.marked_for_review,
-                    'is_flagged': official.is_flagged
+                    'is_flagged': official.is_flagged,
+                    'department': official.department,
+                    'office_location': official.office_location,
+                    'contact_email': official.contact_email
                 })
         
         print("Matching officials found:", len(results))
@@ -188,7 +194,10 @@ def get_feedbacks(official_id):
                 'rating': official.average_rating,
                 'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
-                'is_flagged': official.is_flagged
+                'is_flagged': official.is_flagged,
+                'department': official.department,
+                'office_location': official.office_location,
+                'contact_email': official.contact_email
             },
             'feedbacks': feedbacks
         }
@@ -270,7 +279,10 @@ def submit_feedback(official_id):
                 'rating': official.average_rating,
                 'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
-                'is_flagged': official.is_flagged
+                'is_flagged': official.is_flagged,
+                'department': official.department,
+                'office_location': official.office_location,
+                'contact_email': official.contact_email
             }
         })
     except ValueError as e:
@@ -306,7 +318,10 @@ def confirm_poor_service(id):
                 'rating': official.average_rating,
                 'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
-                'is_flagged': official.is_flagged
+                'is_flagged': official.is_flagged,
+                'department': official.department,
+                'office_location': official.office_location,
+                'contact_email': official.contact_email
             }
         })
     except Exception as e:
@@ -324,7 +339,10 @@ def admin_officials():
         official = Official(
             name=data['name'],
             position=data['position'],
-            photo_url=data.get('photo_url', 'https://via.placeholder.com/150')
+            photo_url=data.get('photo_url', 'https://via.placeholder.com/150'),
+            department=data.get('department', ''),
+            office_location=data.get('office_location', ''),
+            contact_email=data.get('contact_email', '')
         )
         db.session.add(official)
         db.session.commit()
@@ -339,7 +357,10 @@ def admin_officials():
         'rating': o.average_rating,
         'poor_ratings_count': o.poor_ratings_count,
         'marked_for_review': o.marked_for_review,
-        'is_flagged': o.is_flagged
+        'is_flagged': o.is_flagged,
+        'department': o.department,
+        'office_location': o.office_location,
+        'contact_email': o.contact_email
     } for o in officials])
 
 @app.route('/api/admin/officials/<int:id>', methods=['DELETE'])
@@ -384,6 +405,12 @@ def update_official(id):
         official.position = data['position']
         if 'photo_url' in data:
             official.photo_url = data['photo_url']
+        if 'department' in data:
+            official.department = data['department']
+        if 'office_location' in data:
+            official.office_location = data['office_location']
+        if 'contact_email' in data:
+            official.contact_email = data['contact_email']
             
         db.session.commit()
         print(f"Official {official.name} updated successfully")
@@ -399,7 +426,10 @@ def update_official(id):
                 'rating': official.average_rating,
                 'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
-                'is_flagged': official.is_flagged
+                'is_flagged': official.is_flagged,
+                'department': official.department,
+                'office_location': official.office_location,
+                'contact_email': official.contact_email
             }
         })
     except Exception as e:
@@ -411,24 +441,36 @@ def update_official(id):
 @login_required
 @admin_required
 def admin_users():
-    if request.method == 'POST':
-        data = request.json
-        user = User(
-            name=data['name'],
-            aadhar_id=data['aadhar_id'],
-            password=generate_password_hash(data['password'], method='pbkdf2:sha256'),
-            role='user'
-        )
-        db.session.add(user)
-        db.session.commit()
-        return jsonify({'success': True})
+    if request.method == 'GET':
+        users = User.query.filter(User.role != 'admin').all()
+        return jsonify([{
+            'name': user.name,
+            'aadhar_id': user.aadhar_id,
+            'role': user.role
+        } for user in users])
     
-    users = User.query.filter_by(role='user').all()
-    return jsonify([{
-        'id': u.aadhar_id,
-        'name': u.name,
-        'aadhar_id': u.aadhar_id
-    } for u in users])
+    data = request.get_json()
+    
+    if not data or not all(k in data for k in ['name', 'aadhar_id', 'password']):
+        return jsonify({'error': 'Missing required fields'}), 400
+        
+    if User.query.get(data['aadhar_id']):
+        return jsonify({'error': 'User with this Aadhar ID already exists'}), 400
+        
+    new_user = User(
+        name=data['name'],
+        aadhar_id=data['aadhar_id'],
+        password=generate_password_hash(data['password'], method='pbkdf2:sha256'),
+        role='user'
+    )
+    
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'message': 'User added successfully'}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/users/<aadhar_id>', methods=['DELETE'])
 @login_required
@@ -457,7 +499,7 @@ def reset_password(aadhar_id):
 @login_required
 @admin_required
 def admin_feedbacks():
-    official_id = request.args.get('official_id')
+    official_id = request.args.get('official_id', type=int)
     query = Feedback.query
     
     if official_id:
@@ -467,11 +509,14 @@ def admin_feedbacks():
     return jsonify([{
         'id': f.id,
         'user_name': f.user.name,
+        'user_aadhar_id': f.user.aadhar_id,
+        'official_id': f.official_id,
         'official_name': f.official.name,
+        'official_position': f.official.position,
         'category': f.category,
         'rating': f.rating,
         'description': f.description,
-        'timestamp': f.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        'timestamp': f.timestamp.isoformat()
     } for f in feedbacks])
 
 @app.route('/api/admin/feedbacks/<int:id>', methods=['DELETE'])

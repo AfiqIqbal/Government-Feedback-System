@@ -282,6 +282,123 @@
             }
         }
 
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                if (!response.ok) {
+                    throw new Error('Failed to load users');
+                }
+                const users = await response.json();
+                
+                const usersList = document.getElementById('usersList');
+                if (!usersList) {
+                    console.error('Users list element not found');
+                    return;
+                }
+                
+                usersList.innerHTML = '';
+                users.forEach(user => {
+                    const userCard = document.createElement('div');
+                    userCard.className = 'bg-gray-50 p-4 rounded-lg shadow mb-2';
+                    userCard.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="font-semibold">${user.name}</h4>
+                                <p class="text-sm text-gray-600">Aadhar ID: ${user.aadhar_id}</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="resetPassword('${user.aadhar_id}')" 
+                                        class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                                        title="Reset Password">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <button onclick="deleteUser('${user.aadhar_id}')" 
+                                        class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                                        title="Delete User">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    usersList.appendChild(userCard);
+                });
+            } catch (error) {
+                console.error('Error loading users:', error);
+                showToast('Error loading users: ' + error.message, 'error');
+            }
+        }
+
+        // Load feedbacks
+        async function loadFeedbacks() {
+            try {
+                const selectedOfficial = document.getElementById('officialFilter').value;
+                const url = selectedOfficial ? 
+                    `/api/admin/feedbacks?official_id=${selectedOfficial}` : 
+                    '/api/admin/feedbacks';
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Failed to load feedbacks');
+                }
+                const feedbacks = await response.json();
+                
+                const feedbackList = document.getElementById('feedbackList');
+                if (!feedbackList) {
+                    console.error('Feedback list element not found');
+                    return;
+                }
+                
+                feedbackList.innerHTML = '';
+                feedbacks.forEach(feedback => {
+                    const feedbackCard = document.createElement('div');
+                    feedbackCard.className = 'bg-gray-50 p-4 rounded-lg shadow';
+                    
+                    // Convert UTC timestamp to local time
+                    const timestamp = new Date(feedback.timestamp).toLocaleString();
+                    
+                    feedbackCard.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex-grow">
+                                <div class="flex items-center space-x-2">
+                                    <h4 class="font-semibold">${feedback.official_name}</h4>
+                                    <span class="text-sm text-gray-500">(${feedback.official_position})</span>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-1">From: ${feedback.user_name}</p>
+                                <p class="text-sm text-gray-600">Category: ${feedback.category}</p>
+                                <div class="text-yellow-400 my-1">
+                                    ${'★'.repeat(feedback.rating)}${'☆'.repeat(5-feedback.rating)}
+                                </div>
+                                <p class="text-gray-700 mt-2">${feedback.description}</p>
+                                <p class="text-xs text-gray-500 mt-2">Submitted: ${timestamp}</p>
+                            </div>
+                            <button onclick="deleteFeedback(${feedback.id})" 
+                                    class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 ml-4"
+                                    title="Delete Feedback">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    feedbackList.appendChild(feedbackCard);
+                });
+
+                // Update official filter dropdown
+                const officialFilter = document.getElementById('officialFilter');
+                if (officialFilter && officialFilter.children.length <= 1) {
+                    const officials = await fetch('/api/admin/officials').then(res => res.json());
+                    officials.forEach(official => {
+                        const option = document.createElement('option');
+                        option.value = official.id;
+                        option.textContent = official.name;
+                        officialFilter.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading feedbacks:', error);
+                showToast('Error loading feedbacks: ' + error.message, 'error');
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadOfficials();
