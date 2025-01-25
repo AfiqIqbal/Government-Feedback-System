@@ -3,92 +3,93 @@ from werkzeug.security import generate_password_hash
 
 def init_database():
     with app.app_context():
-        # Drop all tables
-        print("Dropping all tables...")
-        db.drop_all()
-        
-        # Create tables
-        print("Creating tables...")
-        db.create_all()
-
-        # Add admin user
-        admin_user = User(
-            aadhar_id='999999999999',
-            password=generate_password_hash('admin123'),
-            name='Admin',
-            role='admin'
-        )
-
-        # Add test users
-        users = [
-            User(
-                aadhar_id='123456789012',
-                password=generate_password_hash('password123'),
-                name='Mukthar',
-                role='user'
-            ),
-            User(
-                aadhar_id='234567890123',
-                password=generate_password_hash('password123'),
-                name='Vijeesh',
-                role='user'
-            ),
-            User(
-                aadhar_id='345678901234',
-                password=generate_password_hash('password123'),
-                name='Jyothir',
-                role='user'
-            ),
-            User(
-                aadhar_id='456789012345',
-                password=generate_password_hash('password123'),
-                name='Abhijith',
-                role='user'
-            )
-        ]
-
-        # Add officials
-        officials = [
-            Official(
-                name='Gouri',
-                position='Revenue Department Officer',
-                photo_url='https://via.placeholder.com/150',
-                average_rating=0.0,
-                poor_ratings_count=0,
-                marked_for_review=False,
-                is_flagged=False
-            ),
-            Official(
-                name='Afiq',
-                position='SBI Branch Manager',
-                photo_url='https://via.placeholder.com/150',
-                average_rating=0.0,
-                poor_ratings_count=0,
-                marked_for_review=False,
-                is_flagged=False
-            ),
-            Official(
-                name='Lakshmi',
-                position='Professor',
-                photo_url='https://via.placeholder.com/150',
-                average_rating=0.0,
-                poor_ratings_count=0,
-                marked_for_review=False,
-                is_flagged=False
-            ),
-            Official(
-                name='Ribin',
-                position='Clerk',
-                photo_url='https://via.placeholder.com/150',
-                average_rating=0.0,
-                poor_ratings_count=0,
-                marked_for_review=False,
-                is_flagged=False
-            )
-        ]
-
-        # Add to database
         try:
+            # Drop all tables
+            print("Dropping all tables...")
+            db.drop_all()
+            
+            # Create tables
+            print("Creating tables...")
+            db.create_all()
+
+            print("Creating users...")
+            # Add admin user
+            admin_user = User(
+                aadhar_id='999999999999',
+                password=generate_password_hash('admin123', method='pbkdf2:sha256'),
+                name='Admin',
+                role='admin'
+            )
+
+            # Add test users
+            users = [
+                User(
+                    aadhar_id='123456789012',
+                    password=generate_password_hash('password123', method='pbkdf2:sha256'),
+                    name='Mukthar',
+                    role='user'
+                ),
+                User(
+                    aadhar_id='234567890123',
+                    password=generate_password_hash('password123', method='pbkdf2:sha256'),
+                    name='Vijeesh',
+                    role='user'
+                ),
+                User(
+                    aadhar_id='345678901234',
+                    password=generate_password_hash('password123', method='pbkdf2:sha256'),
+                    name='Jyothir',
+                    role='user'
+                ),
+                User(
+                    aadhar_id='456789012345',
+                    password=generate_password_hash('password123', method='pbkdf2:sha256'),
+                    name='Abhijith',
+                    role='user'
+                )
+            ]
+
+            # Add officials
+            officials = [
+                Official(
+                    name='Gouri',
+                    position='Revenue Department Officer',
+                    photo_url='https://via.placeholder.com/150',
+                    average_rating=0.0,
+                    poor_ratings_count=0,
+                    marked_for_review=False,
+                    is_flagged=False
+                ),
+                Official(
+                    name='Afiq',
+                    position='SBI Branch Manager',
+                    photo_url='https://via.placeholder.com/150',
+                    average_rating=0.0,
+                    poor_ratings_count=0,
+                    marked_for_review=False,
+                    is_flagged=False
+                ),
+                Official(
+                    name='Lakshmi',
+                    position='Professor',
+                    photo_url='https://via.placeholder.com/150',
+                    average_rating=0.0,
+                    poor_ratings_count=0,
+                    marked_for_review=False,
+                    is_flagged=False
+                ),
+                Official(
+                    name='Ribin',
+                    position='Clerk',
+                    photo_url='https://via.placeholder.com/150',
+                    average_rating=0.0,
+                    poor_ratings_count=0,
+                    marked_for_review=False,
+                    is_flagged=False
+                )
+            ]
+
+            # Add to database
             # First clear existing data
             db.session.query(User).delete()
             db.session.query(Official).delete()

@@ -55,8 +55,12 @@ def load_user(aadhar_id):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
+        if not current_user.is_authenticated:
+            flash('Please log in first.', 'error')
+            return redirect(url_for('login'))
+        if current_user.role != 'admin':
+            flash('Admin access required.', 'error')
+            return redirect(url_for('search'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -64,33 +68,36 @@ def admin_required(f):
 def index():
     if current_user.is_authenticated:
         if current_user.role == 'admin':
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('admin'))
         return redirect(url_for('search'))
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    print("Login route accessed")
     if request.method == 'POST':
         aadhar_id = request.form.get('aadhar_id')
         password = request.form.get('password')
-        print(f"Login attempt - Aadhar ID: {aadhar_id}")
-        print(f"Form data: {request.form}")
         
-        user = User.query.filter_by(aadhar_id=aadhar_id).first()
-        if user:
-            print(f"User found: {user.name}")
-            if check_password_hash(user.password, password):
-                login_user(user)
-                print(f"Login successful for user: {user.name}")
-                flash(f'Welcome back, {user.name}!', 'success')
-                return redirect(url_for('index'))
-            else:
-                print("Password verification failed")
+        if not aadhar_id or not password:
+            flash('Please fill in all fields', 'error')
+            return redirect(url_for('login'))
+            
+        user = User.query.get(aadhar_id)
+        if user is None:
+            flash('Invalid Aadhar ID or password', 'error')
+            return redirect(url_for('login'))
+            
+        if check_password_hash(user.password, password):
+            login_user(user)
+            flash(f'Welcome back, {user.name}!', 'success')
+            # Redirect admin to admin page, others to search page
+            if user.role == 'admin':
+                return redirect(url_for('admin'))
+            return redirect(url_for('search'))
         else:
-            print("User not found")
-        
-        flash('Invalid credentials. Please try again.', 'error')
+            flash('Invalid Aadhar ID or password', 'error')
+            return redirect(url_for('login'))
+            
     return render_template('login.html')
 
 @app.route('/logout', methods=['POST'])
@@ -107,8 +114,18 @@ def search():
 @app.route('/admin')
 @login_required
 @admin_required
-def admin_panel():
-    return render_template('admin.html')
+def admin():
+    try:
+        users = User.query.filter(User.role != 'admin').all()
+        officials = Official.query.all()
+        feedbacks = Feedback.query.all()
+        return render_template('admin.html', 
+                             users=users, 
+                             officials=officials, 
+                             feedbacks=feedbacks)
+    except Exception as e:
+        flash('Error loading admin page: ' + str(e), 'error')
+        return redirect(url_for('index'))
 
 # API Routes
 @app.route('/api/officials/search')
@@ -131,6 +148,7 @@ def search_officials():
                     'position': official.position,
                     'photo_url': official.photo_url,
                     'rating': official.average_rating,
+                    'poor_ratings_count': official.poor_ratings_count,
                     'marked_for_review': official.marked_for_review,
                     'is_flagged': official.is_flagged
                 })
@@ -141,28 +159,45 @@ def search_officials():
         print("Error in search_officials:", str(e))
         return jsonify({'error': 'An error occurred while searching officials'}), 500
 
-@app.route('/api/officials/<int:official_id>/feedbacks')
+@app.route('/api/officials/<int:official_id>/feedbacks', methods=['GET'])
 @login_required
 def get_feedbacks(official_id):
     try:
         print(f"Getting feedbacks for official {official_id}")
         official = Official.query.get_or_404(official_id)
-        feedbacks = Feedback.query.filter_by(official_id=official_id).order_by(Feedback.timestamp.desc()).all()
+        
+        # Get all feedback details
+        feedbacks = []
+        for feedback in official.feedbacks:
+            feedbacks.append({
+                'id': feedback.id,
+                'user_name': feedback.user.name,
+                'category': feedback.category,
+                'rating': feedback.rating,
+                'description': feedback.description,
+                'timestamp': feedback.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+        # Include official details with the response
+        response = {
+            'official': {
+                'id': official.id,
+                'name': official.name,
+                'position': official.position,
+                'photo_url': official.photo_url,
+                'rating': official.average_rating,
+                'poor_ratings_count': official.poor_ratings_count,
+                'marked_for_review': official.marked_for_review,
+                'is_flagged': official.is_flagged
+            },
+            'feedbacks': feedbacks
+        }
+        
         print(f"Found {len(feedbacks)} feedbacks")
-        
-        result = [{
-            'id': f.id,
-            'user_name': f.user.name,
-            'category': f.category,
-            'rating': f.rating,
-            'description': f.description,
-            'timestamp': f.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-        } for f in feedbacks]
-        
-        return jsonify({'feedbacks': result})
+        return jsonify(response)
     except Exception as e:
         print(f"Error getting feedbacks: {str(e)}")
-        return jsonify({'error': 'An error occurred while fetching feedbacks'}), 500
+        return jsonify({'error': 'An error occurred while getting feedbacks'}), 500
 
 @app.route('/api/officials/<int:official_id>/feedbacks', methods=['POST'])
 @login_required
@@ -203,17 +238,27 @@ def submit_feedback(official_id):
         total_rating = sum(f.rating for f in all_feedbacks)
         official.average_rating = total_rating / len(all_feedbacks)
         
-        # Update poor ratings count
+        # Count poor ratings (1 or 2) for this official
+        poor_ratings = Feedback.query.filter(
+            Feedback.official_id == official_id,
+            Feedback.rating <= 2
+        ).count()
+        
+        # Add current poor rating if applicable
         if rating <= 2:
-            official.poor_ratings_count += 1
-            if official.poor_ratings_count >= 5 and not official.marked_for_review:
-                official.marked_for_review = True
-                print(f"Official {official.name} marked for review due to {official.poor_ratings_count} poor ratings")
+            poor_ratings += 1
+            
+        # Update poor ratings count
+        official.poor_ratings_count = poor_ratings
+        
+        # Check if official should be marked for review (5 or more poor ratings)
+        if poor_ratings >= 5 and not official.marked_for_review:
+            official.marked_for_review = True
+            print(f"Official {official.name} marked for review due to {poor_ratings} poor ratings")
         
         db.session.commit()
         print(f"Feedback submitted successfully for official {official.name}")
         
-        # Return updated feedbacks
         return jsonify({
             'success': True,
             'message': 'Feedback submitted successfully',
@@ -223,6 +268,7 @@ def submit_feedback(official_id):
                 'position': official.position,
                 'photo_url': official.photo_url,
                 'rating': official.average_rating,
+                'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
                 'is_flagged': official.is_flagged
             }
@@ -258,6 +304,7 @@ def confirm_poor_service(id):
                 'position': official.position,
                 'photo_url': official.photo_url,
                 'rating': official.average_rating,
+                'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
                 'is_flagged': official.is_flagged
             }
@@ -299,10 +346,20 @@ def admin_officials():
 @login_required
 @admin_required
 def delete_official(id):
-    official = Official.query.get_or_404(id)
-    db.session.delete(official)
-    db.session.commit()
-    return jsonify({'success': True})
+    try:
+        official = Official.query.get_or_404(id)
+        
+        # First delete all associated feedbacks
+        Feedback.query.filter_by(official_id=id).delete()
+        
+        # Then delete the official
+        db.session.delete(official)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Official and associated feedbacks deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting official: {str(e)}")
+        return jsonify({'error': 'Failed to delete official'}), 500
 
 @app.route('/api/admin/officials/<int:id>', methods=['PUT'])
 @login_required
@@ -340,6 +397,7 @@ def update_official(id):
                 'position': official.position,
                 'photo_url': official.photo_url,
                 'rating': official.average_rating,
+                'poor_ratings_count': official.poor_ratings_count,
                 'marked_for_review': official.marked_for_review,
                 'is_flagged': official.is_flagged
             }
@@ -358,7 +416,7 @@ def admin_users():
         user = User(
             name=data['name'],
             aadhar_id=data['aadhar_id'],
-            password=generate_password_hash(data['password']),
+            password=generate_password_hash(data['password'], method='pbkdf2:sha256'),
             role='user'
         )
         db.session.add(user)
@@ -385,11 +443,15 @@ def delete_user(aadhar_id):
 @login_required
 @admin_required
 def reset_password(aadhar_id):
-    user = User.query.filter_by(aadhar_id=aadhar_id).first_or_404()
-    data = request.json
-    user.password = generate_password_hash(data['password'])
-    db.session.commit()
-    return jsonify({'success': True})
+    try:
+        user = User.query.get_or_404(aadhar_id)
+        new_password = 'password123'  # Default password
+        user.password = generate_password_hash(new_password, method='pbkdf2:sha256')
+        db.session.commit()
+        return jsonify({'message': f'Password reset successfully for user {user.name}'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/feedbacks')
 @login_required

@@ -162,8 +162,8 @@
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 right-4 transform transition-transform duration-300 translate-x-full">
-        <div class="bg-green-500 text-white px-6 py-3 rounded shadow-lg">
+    <div id="toast" class="fixed top-4 right-4 z-50 transform transition-transform duration-300 translate-x-full">
+        <div id="toastContent" class="px-6 py-3 rounded shadow-lg">
             <span id="toastMessage"></span>
         </div>
     </div>
@@ -177,7 +177,7 @@
                 <button onclick="closeConfirmationModal()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
                     No, Cancel
                 </button>
-                <button onclick="confirmPoorService(selectedOfficial.id)" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                <button onclick="confirmPoorService()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
                     Yes, Confirm
                 </button>
             </div>
@@ -189,29 +189,43 @@
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
+            const toastContent = document.getElementById('toastContent');
             const toastMessage = document.getElementById('toastMessage');
-            toast.firstElementChild.className = type === 'success' 
-                ? 'bg-green-500 text-white px-6 py-3 rounded shadow-lg'
-                : 'bg-red-500 text-white px-6 py-3 rounded shadow-lg';
+            
+            // Set the background color based on type
+            toastContent.className = `px-6 py-3 rounded shadow-lg ${
+                type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            } text-white`;
+            
             toastMessage.textContent = message;
             toast.classList.remove('translate-x-full');
+            
             setTimeout(() => {
                 toast.classList.add('translate-x-full');
             }, 3000);
         }
 
         function showConfirmationModal() {
-            document.getElementById('confirmationModal').classList.remove('hidden');
+            const modal = document.getElementById('confirmationModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
         }
 
         function closeConfirmationModal() {
-            document.getElementById('confirmationModal').classList.add('hidden');
+            const modal = document.getElementById('confirmationModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
         }
 
-        async function confirmPoorService(id) {
+        async function confirmPoorService() {
+            if (!selectedOfficial) {
+                console.error('No official selected for confirmation');
+                return;
+            }
+
             try {
-                console.log('Confirming poor service for official:', id);
-                const response = await fetch(`/api/officials/${id}/confirm-poor-service`, {
+                console.log('Confirming poor service for official:', selectedOfficial.id);
+                const response = await fetch(`/api/officials/${selectedOfficial.id}/confirm-poor-service`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -234,14 +248,13 @@
                 updateOfficialCard(data.official);
                 
                 // Close modal
-                const modal = document.getElementById('confirmationModal');
-                modal.style.display = 'none';
+                closeConfirmationModal();
                 
                 // Show success message
-                showToast(data.message, 'success');
+                showToast('Poor service confirmed', 'success');
             } catch (error) {
                 console.error('Error confirming poor service:', error);
-                showToast('Error confirming poor service: ' + error.message, 'error');
+                showToast(error.message, 'error');
             }
         }
 
@@ -308,7 +321,9 @@
         }
 
         function displayOfficialDetails(official) {
+            console.log('Displaying details for official:', official);
             selectedOfficial = official;
+            
             const detailsDiv = document.getElementById('officialDetails');
             const photoImg = document.getElementById('officialPhoto');
             const nameSpan = document.getElementById('officialName');
@@ -322,25 +337,38 @@
             positionSpan.textContent = official.position;
             ratingDiv.innerHTML = getStarRating(official.rating);
 
-            // Show warning if official is flagged
-            if (official.is_flagged) {
-                warningDiv.innerHTML = `
-                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-                        <p class="font-medium">Warning: This official has been flagged for poor service</p>
-                    </div>
-                `;
+            // Show warning messages and handle confirmation modal
+            if (official.poor_ratings_count >= 5 || official.is_flagged) {
+                let warningHTML = '';
+                if (official.is_flagged) {
+                    warningHTML = `
+                        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                            <p class="font-medium">Warning: This official has been flagged for poor service</p>
+                            <p class="mt-1">This official has received ${official.poor_ratings_count} poor ratings and has been confirmed to provide poor service.</p>
+                        </div>
+                    `;
+                } else if (official.poor_ratings_count >= 5) {
+                    warningHTML = `
+                        <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
+                            <p class="font-medium">Notice: This official has ${official.poor_ratings_count} poor ratings</p>
+                            <p class="mt-1">Multiple users have reported poor service. Please confirm if you also experienced poor service.</p>
+                        </div>
+                    `;
+                    // Show confirmation modal only if not already flagged
+                    console.log('Showing confirmation modal for official with poor ratings:', official.poor_ratings_count);
+                    showConfirmationModal();
+                }
+                warningDiv.innerHTML = warningHTML;
                 warningDiv.classList.remove('hidden');
             } else {
                 warningDiv.classList.add('hidden');
             }
 
-            // Check if official is marked for review and not already flagged
-            if (official.marked_for_review && !official.is_flagged) {
-                showConfirmationModal();
-            }
-
-            updateFeedbackList(official.id);
+            // Update hidden input with official ID
             document.getElementById('selectedOfficialId').value = official.id;
+
+            // Load feedbacks
+            updateFeedbackList(official.id);
         }
 
         async function updateFeedbackList(officialId) {
@@ -425,14 +453,11 @@
                 }
                 
                 const data = await response.json();
-                console.log('Feedback submitted:', data);
+                console.log('Feedback submitted successfully:', data);
                 
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                
-                // Update UI with new official data
-                updateOfficialCard(data.official);
                 
                 // Reset form
                 form.reset();
@@ -440,32 +465,95 @@
                 // Show success message
                 showToast('Feedback submitted successfully', 'success');
                 
+                // Update UI with new official data
+                updateOfficialCard(data.official);
+                
                 // Refresh feedback list
                 await updateFeedbackList(officialId);
             } catch (error) {
                 console.error('Error submitting feedback:', error);
-                showToast('Error submitting feedback: ' + error.message, 'error');
+                showToast(error.message, 'error');
             }
         }
 
         function updateOfficialCard(official) {
-            const card = document.querySelector(`[data-official-id="${official.id}"]`);
-            if (card) {
-                // Update rating
-                const ratingElement = card.querySelector('.rating');
-                if (ratingElement) {
-                    ratingElement.textContent = official.rating.toFixed(1);
+            console.log('Updating official card with data:', official);
+            selectedOfficial = official;
+            
+            // Update details in the main view
+            const nameSpan = document.getElementById('officialName');
+            const positionSpan = document.getElementById('officialPosition');
+            const ratingDiv = document.getElementById('officialRating');
+            const warningDiv = document.getElementById('officialWarning');
+            const photoImg = document.getElementById('officialPhoto');
+
+            if (nameSpan) nameSpan.textContent = official.name;
+            if (positionSpan) positionSpan.textContent = official.position;
+            if (ratingDiv) ratingDiv.innerHTML = getStarRating(official.rating);
+            if (photoImg) photoImg.src = official.photo_url || 'default-photo.jpg';
+
+            // Update warning message
+            if (warningDiv) {
+                let warningHTML = '';
+                if (official.poor_ratings_count >= 5 || official.is_flagged) {
+                    if (official.is_flagged) {
+                        warningHTML = `
+                            <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                                <p class="font-medium">Warning: This official has been flagged for poor service</p>
+                                <p class="mt-1">This official has received ${official.poor_ratings_count} poor ratings and has been confirmed to provide poor service.</p>
+                            </div>
+                        `;
+                    } else {
+                        warningHTML = `
+                            <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
+                                <p class="font-medium">Notice: This official has ${official.poor_ratings_count} poor ratings</p>
+                                <p class="mt-1">Multiple users have reported poor service. Please confirm if you also experienced poor service.</p>
+                            </div>
+                        `;
+                        // Show confirmation modal only if not already flagged
+                        if (official.poor_ratings_count >= 5 && !official.is_flagged) {
+                            console.log('Showing confirmation modal for official with poor ratings:', official.poor_ratings_count);
+                            showConfirmationModal();
+                        }
+                    }
                 }
                 
-                // Update badges
-                const badgesDiv = card.querySelector('.badges');
-                if (badgesDiv) {
-                    badgesDiv.innerHTML = '';
-                    if (official.is_flagged) {
-                        badgesDiv.innerHTML += '<span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Flagged</span>';
-                    }
-                    if (official.marked_for_review) {
-                        badgesDiv.innerHTML += '<span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">Under Review</span>';
+                if (warningHTML) {
+                    warningDiv.innerHTML = warningHTML;
+                    warningDiv.classList.remove('hidden');
+                } else {
+                    warningDiv.classList.add('hidden');
+                }
+            }
+
+            // Update the official in search results
+            const searchResults = document.getElementById('searchResults');
+            if (searchResults) {
+                const officialCards = searchResults.getElementsByClassName('p-4 hover:bg-gray-50 cursor-pointer');
+                for (let card of officialCards) {
+                    if (card.querySelector('.font-semibold').textContent.includes(official.name)) {
+                        let warningBadge = '';
+                        if (official.is_flagged) {
+                            warningBadge = '<span class="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded ml-2">⚠️ Flagged</span>';
+                        } else if (official.poor_ratings_count >= 5) {
+                            warningBadge = '<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded ml-2">Under Review</span>';
+                        }
+
+                        card.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-semibold text-gray-800">${official.name}${warningBadge}</h3>
+                                    <p class="text-gray-600 text-sm">${official.position}</p>
+                                </div>
+                                <div class="text-yellow-400">
+                                    ${getStarRating(official.rating)}
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Reattach click event
+                        card.addEventListener('click', () => displayOfficialDetails(official));
+                        break;
                     }
                 }
             }

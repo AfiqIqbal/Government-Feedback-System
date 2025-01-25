@@ -161,6 +161,7 @@
 
         // Edit official functions
         function editOfficial(official) {
+            console.log('Editing official:', official);
             const modal = document.getElementById('editOfficialModal');
             document.getElementById('editOfficialId').value = official.id;
             document.getElementById('editOfficialName').value = official.name;
@@ -175,7 +176,6 @@
 
         async function updateOfficial(event) {
             event.preventDefault();
-            const form = event.target;
             const id = document.getElementById('editOfficialId').value;
             
             try {
@@ -231,29 +231,46 @@
                 officials.forEach(official => {
                     const div = document.createElement('div');
                     div.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
-                    div.innerHTML = `
-                        <div>
-                            <p class="font-semibold">${official.name}</p>
-                            <p class="text-sm text-gray-600">${official.position}</p>
-                            <div class="text-sm text-gray-500">
-                                Rating: ${official.average_rating ? official.average_rating.toFixed(1) : 'N/A'}
-                                ${official.marked_for_review ? '<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded ml-2">Under Review</span>' : ''}
-                                ${official.is_flagged ? '<span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded ml-2">Flagged</span>' : ''}
-                            </div>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button onclick='editOfficial(${JSON.stringify(official)})' class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteOfficial(${official.id})" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                    
+                    // Create the official info section
+                    const infoDiv = document.createElement('div');
+                    infoDiv.innerHTML = `
+                        <p class="font-semibold">${official.name}</p>
+                        <p class="text-sm text-gray-600">${official.position}</p>
+                        <div class="text-sm text-gray-500">
+                            Rating: ${official.average_rating ? official.average_rating.toFixed(1) : 'N/A'}
+                            ${official.marked_for_review ? '<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded ml-2">Under Review</span>' : ''}
+                            ${official.is_flagged ? '<span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded ml-2">Flagged</span>' : ''}
                         </div>
                     `;
+                    
+                    // Create the actions section
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'flex space-x-2';
+                    
+                    // Create edit button
+                    const editButton = document.createElement('button');
+                    editButton.className = 'text-blue-600 hover:text-blue-800';
+                    editButton.innerHTML = '<i class="fas fa-edit"></i>';
+                    editButton.addEventListener('click', () => editOfficial(official));
+                    
+                    // Create delete button
+                    const deleteButton = document.createElement('button');
+                    deleteButton.className = 'text-red-600 hover:text-red-800';
+                    deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+                    deleteButton.addEventListener('click', () => deleteOfficial(official.id));
+                    
+                    // Add buttons to actions div
+                    actionsDiv.appendChild(editButton);
+                    actionsDiv.appendChild(deleteButton);
+                    
+                    // Add all elements to main div
+                    div.appendChild(infoDiv);
+                    div.appendChild(actionsDiv);
                     officialsList.appendChild(div);
                 });
 
-                // Also update the official filter dropdown for feedbacks
+                // Update official filter dropdown for feedbacks
                 const officialFilter = document.getElementById('officialFilter');
                 officialFilter.innerHTML = '<option value="">All Officials</option>';
                 officials.forEach(official => {
@@ -265,144 +282,80 @@
             }
         }
 
-        // Load users
-        async function loadUsers() {
-            try {
-                const response = await fetch('/api/admin/users');
-                const users = await response.json();
-                
-                const usersList = document.getElementById('usersList');
-                usersList.innerHTML = '';
-                
-                users.forEach(user => {
-                    const div = document.createElement('div');
-                    div.className = 'flex items-center justify-between p-2 bg-gray-50 rounded';
-                    div.innerHTML = `
-                        <div>
-                            <p class="font-semibold">${user.name}</p>
-                            <p class="text-sm text-gray-600">Aadhar: ${user.aadhar_id}</p>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button onclick="resetPassword(${user.aadhar_id})" class="text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-key"></i>
-                            </button>
-                            <button onclick="deleteUser(${user.aadhar_id})" class="text-red-600 hover:text-red-800">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    usersList.appendChild(div);
-                });
-            } catch (error) {
-                console.error('Error loading users:', error);
-                showToast('Error loading users', 'error');
-            }
-        }
-
-        // Load feedbacks
-        async function loadFeedbacks() {
-            try {
-                const officialId = document.getElementById('officialFilter').value;
-                const response = await fetch(`/api/admin/feedbacks${officialId ? `?official_id=${officialId}` : ''}`);
-                const feedbacks = await response.json();
-                
-                const feedbackList = document.getElementById('feedbackList');
-                feedbackList.innerHTML = '';
-                
-                feedbacks.forEach(feedback => {
-                    const div = document.createElement('div');
-                    div.className = 'bg-gray-50 rounded p-4';
-                    div.innerHTML = `
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="font-semibold">${feedback.user_name}</p>
-                                <p class="text-sm text-gray-600">For: ${feedback.official_name}</p>
-                                <p class="mt-2">${feedback.description}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-sm text-gray-600">Rating: ${feedback.rating}/5</p>
-                                <p class="text-xs text-gray-500">${feedback.timestamp}</p>
-                                <button onclick="deleteFeedback(${feedback.id})" class="text-red-600 hover:text-red-800 mt-2">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    feedbackList.appendChild(div);
-                });
-            } catch (error) {
-                console.error('Error loading feedbacks:', error);
-                showToast('Error loading feedbacks', 'error');
-            }
-        }
-
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadOfficials();
             loadUsers();
             loadFeedbacks();
+            
+            // Add event listener for edit form submission
+            document.getElementById('editOfficialForm').addEventListener('submit', updateOfficial);
+            
+            // Add event listeners for add forms
+            document.getElementById('officialForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const formData = {
+                        name: document.getElementById('officialName').value,
+                        position: document.getElementById('officialPosition').value,
+                        photo_url: document.getElementById('officialPhoto').value
+                    };
+                    
+                    const response = await fetch('/api/admin/officials', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to add official');
+                    }
+                    
+                    showToast('Official added successfully');
+                    document.getElementById('officialForm').reset();
+                    toggleForm('officialForm');
+                    await loadOfficials();
+                } catch (error) {
+                    console.error('Error adding official:', error);
+                    showToast('Error adding official: ' + error.message, 'error');
+                }
+            });
+            
+            document.getElementById('userForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const formData = {
+                        name: document.getElementById('userName').value,
+                        aadhar_id: document.getElementById('userAadhar').value,
+                        password: document.getElementById('userPassword').value
+                    };
+                    
+                    const response = await fetch('/api/admin/users', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to add user');
+                    }
+                    
+                    showToast('User added successfully');
+                    document.getElementById('userForm').reset();
+                    toggleForm('userForm');
+                    await loadUsers();
+                } catch (error) {
+                    console.error('Error adding user:', error);
+                    showToast('Error adding user: ' + error.message, 'error');
+                }
+            });
         });
 
         // Form submissions
-        document.getElementById('officialForm').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const data = {
-                name: document.getElementById('officialName').value,
-                position: document.getElementById('officialPosition').value,
-                photo_url: document.getElementById('officialPhoto').value || 'https://via.placeholder.com/150'
-            };
-
-            try {
-                const response = await fetch('/api/admin/officials', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    showToast('Official added successfully');
-                    event.target.reset();
-                    toggleForm('officialForm');
-                    loadOfficials();
-                } else {
-                    showToast('Error adding official', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Error adding official', 'error');
-            }
-        });
-
-        document.getElementById('userForm').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const data = {
-                name: document.getElementById('userName').value,
-                aadhar_id: document.getElementById('userAadhar').value,
-                password: document.getElementById('userPassword').value
-            };
-
-            try {
-                const response = await fetch('/api/admin/users', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    showToast('User added successfully');
-                    event.target.reset();
-                    toggleForm('userForm');
-                    loadUsers();
-                } else {
-                    showToast('Error adding user', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Error adding user', 'error');
-            }
-        });
-
-        // Helper functions
         async function deleteOfficial(id) {
             if (!confirm('Are you sure you want to delete this official?')) return;
             
