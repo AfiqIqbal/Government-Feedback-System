@@ -61,18 +61,6 @@
                             <label class="block text-sm font-medium text-gray-700">Photo URL</label>
                             <input type="text" id="officialPhoto" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Department</label>
-                            <input type="text" id="officialDepartment" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Office Location</label>
-                            <input type="text" id="officialLocation" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Contact Email</label>
-                            <input type="text" id="officialEmail" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        </div>
                         <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                             Save Official
                         </button>
@@ -610,86 +598,6 @@
             loadOfficials();
             loadUsers();
             loadFeedbacks();
-
-            // Add event listener for official form submission
-            document.getElementById('officialForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                try {
-                    const formData = {
-                        name: document.getElementById('officialName').value,
-                        position: document.getElementById('officialPosition').value,
-                        photo_url: document.getElementById('officialPhoto').value || 'https://via.placeholder.com/150',
-                        department: document.getElementById('officialDepartment')?.value || '',
-                        office_location: document.getElementById('officialLocation')?.value || '',
-                        contact_email: document.getElementById('officialEmail')?.value || ''
-                    };
-
-                    console.log('Submitting official data:', formData);
-                    
-                    const response = await fetch('/api/admin/officials', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(formData)
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Failed to add official');
-                    }
-                    
-                    showToast('Official added successfully');
-                    document.getElementById('officialForm').reset();
-                    toggleForm('officialForm');
-                    
-                    // Refresh the officials list
-                    await loadOfficials();
-                    
-                    // Also refresh the feedback filter dropdown
-                    const officialFilter = document.getElementById('officialFilter');
-                    const currentValue = officialFilter.value;
-                    await loadOfficials(); // This will update the dropdown
-                    officialFilter.value = currentValue; // Restore the selected value
-                    
-                } catch (error) {
-                    console.error('Error adding official:', error);
-                    showToast('Error adding official: ' + error.message, 'error');
-                }
-            });
-
-            // Add event listener for user form submission
-            document.getElementById('userForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                try {
-                    const formData = {
-                        name: document.getElementById('userName').value,
-                        aadhar_id: document.getElementById('userAadhar').value,
-                        password: document.getElementById('userPassword').value
-                    };
-                    
-                    const response = await fetch('/api/admin/users', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(formData)
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to add user');
-                    }
-                    
-                    showToast('User added successfully');
-                    document.getElementById('userForm').reset();
-                    toggleForm('userForm');
-                    await loadUsers();
-                } catch (error) {
-                    console.error('Error adding user:', error);
-                    showToast('Error adding user: ' + error.message, 'error');
-                }
-            });
         }
 
         // Wait for DOM to be ready
